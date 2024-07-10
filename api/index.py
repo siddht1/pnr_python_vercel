@@ -1,9 +1,8 @@
-# pnr_status.py
-
-import requests
-import re
+from http.server import BaseHTTPRequestHandler
 import json
 from urllib.parse import urlparse, parse_qs
+import re
+import requests
 
 PNR_BASE_URL = 'https://www.confirmtkt.com/pnr-status'
 
@@ -32,33 +31,26 @@ def get_pnr_status(pnr):
         print(f"Failed to retrieve the webpage. Status code: {response.status_code}")
         return None
 
-def handler(request):
-    if request.method == 'GET':
-        query_params = request.query
-        pnr = query_params.get('pnr')
+class handler(BaseHTTPRequestHandler):
 
-        if pnr and is_valid_pnr(pnr):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+
+        parsed_path = urlparse(self.path)
+        query_params = parse_qs(parsed_path.query)
+        pnr = query_params.get('pnr', [None])[0]
+
+        if pnr and self.is_valid_pnr(pnr):
             status = get_pnr_status(pnr)
             if status:
-                return {
-                    'statusCode': 200,
-                    'body': json.dumps(status)
-                }
+                self.wfile.write(json.dumps(status).encode('utf-8'))
             else:
-                return {
-                    'statusCode': 500,
-                    'body': json.dumps({'error': 'Failed to fetch PNR status'})
-                }
+                self.wfile.write(json.dumps({"error": "Failed to fetch PNR status"}).encode('utf-8'))
         else:
-            return {
-                'statusCode': 400,
-                'body': json.dumps({'error': 'Invalid or missing PNR number'})
-            }
-    else:
-        return {
-            'statusCode': 405,
-            'body': json.dumps({'error': 'Method not allowed'})
-        }
+            self.wfile.write(json.dumps({"error": "Invalid or missing PNR number"}).encode('utf-8'))
 
-def is_valid_pnr(pnr):
-    return bool(re.match(r'^\d{10}$', pnr))
+    def is_valid_pnr(self, pnr):
+        return bool(re.match(r'^\d{10}$', pnr))
+
